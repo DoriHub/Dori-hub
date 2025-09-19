@@ -2,34 +2,67 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
+print("Garden Auto Farmer - Starting...")
+
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-local GardenGame = Workspace:FindFirstChild("GardenGame") or Workspace:WaitForChild("GardenGame")
-local Remotes = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:WaitForChild("Remotes")
+print("PlayerGui found")
+
+local GardenGame = Workspace:FindFirstChild("GardenGame") or Workspace:WaitForChild("GardenGame", 5)
+if not GardenGame then
+    warn("GardenGame not found in Workspace!")
+    print("Available workspace children:")
+    for _, child in pairs(Workspace:GetChildren()) do
+        print(" - " .. child.Name)
+    end
+end
+
+local Remotes = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:WaitForChild("Remotes", 5)
+if not Remotes then
+    warn("Remotes folder not found!")
+    print("Available ReplicatedStorage children:")
+    for _, child in pairs(ReplicatedStorage:GetChildren()) do
+        print(" - " .. child.Name)
+    end
+end
 
 local GetFruitRemote
 local AscendRemote
 local GetPlayerDataRemote
 
-for _, remote in pairs(Remotes:GetChildren()) do
-    if remote.Name:lower():find("fruit") or remote.Name:lower():find("collect") then
-        GetFruitRemote = remote
-    elseif remote.Name:lower():find("ascend") then
-        AscendRemote = remote
-    elseif remote.Name:lower():find("player") or remote.Name:lower():find("data") then
-        GetPlayerDataRemote = remote
+if Remotes then
+    print("Searching for remotes in Remotes folder:")
+    for _, remote in pairs(Remotes:GetChildren()) do
+        print("Found remote: " .. remote.Name)
+        if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+            if remote.Name:lower():find("fruit") or remote.Name:lower():find("collect") or remote.Name:lower():find("pick") then
+                GetFruitRemote = remote
+                print("Set GetFruitRemote: " .. remote.Name)
+            elseif remote.Name:lower():find("ascend") or remote.Name:lower():find("prestige") then
+                AscendRemote = remote
+                print("Set AscendRemote: " .. remote.Name)
+            elseif remote.Name:lower():find("player") or remote.Name:lower():find("data") or remote.Name:lower():find("get") then
+                GetPlayerDataRemote = remote
+                print("Set GetPlayerDataRemote: " .. remote.Name)
+            end
+        end
     end
 end
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "GardenAutoFarm"
-ScreenGui.Parent = PlayerGui
+ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.ResetOnSpawn = false
+
+print("ScreenGui created")
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 300, 0, 200)
 MainFrame.Position = UDim2.new(0.5, -150, 0.5, -100)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+MainFrame.BorderSizePixel = 2
+MainFrame.BorderColor3 = Color3.fromRGB(60, 60, 70)
 MainFrame.Parent = ScreenGui
 
 local Title = Instance.new("TextLabel")
@@ -37,6 +70,7 @@ Title.Size = UDim2.new(1, 0, 0, 30)
 Title.Text = "Garden Auto Farmer"
 Title.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.SourceSansBold
 Title.Parent = MainFrame
 
 local StartButton = Instance.new("TextButton")
@@ -45,6 +79,7 @@ StartButton.Position = UDim2.new(0.5, -60, 0.3, 0)
 StartButton.Text = "START FARMING"
 StartButton.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
 StartButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+StartButton.Font = Enum.Font.SourceSansBold
 StartButton.Parent = MainFrame
 
 local StatusLabel = Instance.new("TextLabel")
@@ -53,6 +88,7 @@ StatusLabel.Position = UDim2.new(0, 0, 0.7, 0)
 StatusLabel.Text = "Status: Ready"
 StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 StatusLabel.BackgroundTransparency = 1
+StatusLabel.Font = Enum.Font.SourceSans
 StatusLabel.Parent = MainFrame
 
 local CloseButton = Instance.new("TextButton")
@@ -61,6 +97,7 @@ CloseButton.Position = UDim2.new(1, -35, 0, 5)
 CloseButton.Text = "X"
 CloseButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.SourceSansBold
 CloseButton.Parent = MainFrame
 
 local PlayerData = {
@@ -71,21 +108,28 @@ local PlayerData = {
 
 local function UpdateStatus(message)
     StatusLabel.Text = "Status: " .. message
+    print("Status: " .. message)
 end
 
 local function FetchPlayerData()
     pcall(function()
         if GetPlayerDataRemote then
-            PlayerData = GetPlayerDataRemote:InvokeServer() or PlayerData
+            if GetPlayerDataRemote:IsA("RemoteFunction") then
+                PlayerData = GetPlayerDataRemote:InvokeServer() or PlayerData
+            elseif GetPlayerDataRemote:IsA("RemoteEvent") then
+                GetPlayerDataRemote:FireServer("GetData")
+            end
         end
         
         local stats = LocalPlayer:FindFirstChild("leaderstats")
         if stats then
             for _, stat in pairs(stats:GetChildren()) do
-                if stat.Name:lower():find("fruit") then
-                    PlayerData.Fruits[stat.Name] = stat.Value
-                elseif stat.Name:lower():find("ascend") then
-                    PlayerData.AscensionLevel = stat.Value
+                if stat:IsA("IntValue") or stat:IsA("NumberValue") then
+                    if stat.Name:lower():find("fruit") or stat.Name:lower():find("apple") or stat.Name:lower():find("orange") or stat.Name:lower():find("banana") then
+                        PlayerData.Fruits[stat.Name] = stat.Value
+                    elseif stat.Name:lower():find("ascend") or stat.Name:lower():find("level") or stat.Name:lower():find("prestige") then
+                        PlayerData.AscensionLevel = stat.Value
+                    end
                 end
             end
         end
@@ -95,13 +139,20 @@ local function FetchPlayerData()
             Orange = 20 + (PlayerData.AscensionLevel * 8),
             Banana = 15 + (PlayerData.AscensionLevel * 6)
         }
+        
+        print("Player Data Updated:")
+        print("Ascension Level:", PlayerData.AscensionLevel)
+        for fruit, amount in pairs(PlayerData.Fruits) do
+            print(fruit .. ":", amount)
+        end
     end)
 end
 
 local function CanAscend()
     for fruit, required in pairs(PlayerData.RequiredFruits) do
-        if (PlayerData.Fruits[fruit] or 0) < required then
-            return false, fruit
+        local current = PlayerData.Fruits[fruit] or 0
+        if current < required then
+            return false, fruit, current, required
         end
     end
     return true
@@ -110,18 +161,37 @@ end
 local function CollectFruits()
     UpdateStatus("Collecting fruits...")
     
-    local fruits = Workspace:FindFirstChild("Fruits") or Workspace:WaitForChild("Fruits")
-    if not fruits then
-        UpdateStatus("No fruits found!")
+    local fruitsFolder = Workspace:FindFirstChild("Fruits") or Workspace:FindFirstChild("Fruit") or Workspace:FindFirstChild("Collectibles")
+    if not fruitsFolder then
+        UpdateStatus("No fruits folder found!")
+        print("Searching for fruits in workspace...")
+        for _, child in pairs(Workspace:GetChildren()) do
+            if child:IsA("BasePart") and (child.Name:lower():find("fruit") or child.Name:lower():find("apple") or child.Name:lower():find("orange") or child.Name:lower():find("banana")) then
+                fruitsFolder = Workspace
+                break
+            end
+        end
+    end
+    
+    if not fruitsFolder then
+        UpdateStatus("No fruits found anywhere!")
         return false
     end
     
     local collected = 0
-    for _, fruit in pairs(fruits:GetChildren()) do
-        if fruit:IsA("BasePart") and fruit.Name:find("Fruit") then
+    for _, item in pairs(fruitsFolder:GetChildren()) do
+        if item:IsA("BasePart") and (item.Name:lower():find("fruit") or item.Name:lower():find("apple") or item.Name:lower():find("orange") or item.Name:lower():find("banana")) then
             pcall(function()
                 if GetFruitRemote then
-                    GetFruitRemote:FireServer(fruit.Name)
+                    if GetFruitRemote:IsA("RemoteEvent") then
+                        GetFruitRemote:FireServer(item.Name)
+                    elseif GetFruitRemote:IsA("RemoteFunction") then
+                        GetFruitRemote:InvokeServer(item.Name)
+                    end
+                    collected = collected + 1
+                    task.wait(0.2)
+                else
+                    item:Destroy()
                     collected = collected + 1
                     task.wait(0.1)
                 end
@@ -129,25 +199,36 @@ local function CollectFruits()
         end
     end
     
-    UpdateStatus("Collected " .. collected .. " fruits")
-    return collected > 0
+    if collected > 0 then
+        UpdateStatus("Collected " .. collected .. " fruits")
+        return true
+    else
+        UpdateStatus("No fruits available to collect")
+        return false
+    end
 end
 
 local function AutoAscend()
-    local canAscend, missingFruit = CanAscend()
+    local canAscend, missingFruit, current, required = CanAscend()
     
     if canAscend then
         UpdateStatus("Ascending...")
         pcall(function()
             if AscendRemote then
-                AscendRemote:FireServer()
-                UpdateStatus("Ascension complete! Level " .. (PlayerData.AscensionLevel + 1))
-                task.wait(2)
+                if AscendRemote:IsA("RemoteEvent") then
+                    AscendRemote:FireServer()
+                elseif AscendRemote:IsA("RemoteFunction") then
+                    AscendRemote:InvokeServer()
+                end
+                UpdateStatus("Ascension complete!")
+                task.wait(3)
                 return true
+            else
+                UpdateStatus("No ascend remote found!")
             end
         end)
     else
-        UpdateStatus("Need more " .. (missingFruit or "fruits"))
+        UpdateStatus("Need " .. (required - current) .. " more " .. missingFruit)
         return false
     end
 end
@@ -157,21 +238,26 @@ local function StartFarming()
     if Farming then return end
     Farming = true
     
-    while Farming do
+    while Farming and ScreenGui and ScreenGui.Parent do
         FetchPlayerData()
         
-        if AutoAscend() then
+        local success = AutoAscend()
+        if success then
             task.wait(5)
-            continue
+        else
+            local collected = CollectFruits()
+            if not collected then
+                UpdateStatus("Waiting for fruits...")
+                task.wait(3)
+            else
+                task.wait(1)
+            end
         end
         
-        if not CollectFruits() then
-            UpdateStatus("Waiting for fruits to spawn...")
-            task.wait(3)
-        end
-        
-        task.wait(1)
+        task.wait(0.5)
     end
+    
+    Farming = false
 end
 
 StartButton.MouseButton1Click:Connect(function()
@@ -190,9 +276,10 @@ end)
 CloseButton.MouseButton1Click:Connect(function()
     Farming = false
     ScreenGui:Destroy()
+    print("GUI closed")
 end)
 
-local dragging, dragInput, dragStart
+local dragging, dragInput, dragStart, startPos
 Title.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging = true
@@ -227,3 +314,7 @@ end)
 
 UpdateStatus("Ready to farm! Click START")
 FetchPlayerData()
+
+print("Garden Auto Farmer loaded successfully!")
+print("GUI should be visible on screen")
+print("If not visible, check CoreGui for GardenAutoFarm")
